@@ -48,3 +48,6 @@ next-env.d.ts
 *.bak
 *.old
 *~
+
+# Firebase private credentials
+service-account.json
