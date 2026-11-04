@@ -15,6 +15,7 @@ type CartItem = {
   unit?: string;
   imageUrl: string;
   stock: number;
+  ownReservedQuantity?: number;
 };
 
 type StoreResponse = {
@@ -43,7 +44,7 @@ export default function CartPage() {
 
     async function loadCart() {
       try {
-        const response = await fetch("/api/store", {
+        const response = await fetch("/api/store?includeCart=1", {
           cache: "no-store",
         });
 
@@ -69,7 +70,7 @@ export default function CartPage() {
             Number.isFinite(product.oldPrice) &&
             product.oldPrice >= product.price &&
             Number.isInteger(product.stock) &&
-            product.stock > 0
+            product.stock >= 0
         );
 
         const saved = localStorage.getItem("mukt-bazar-cart");
@@ -85,20 +86,39 @@ export default function CartPage() {
 
         const valid: Record<string, number> = {};
 
-        for (const [id, quantity] of Object.entries(parsed)) {
+        for (const [id, savedQuantity] of Object.entries(parsed)) {
           const product = available.find((item) => item.id === id);
 
           if (
-            product &&
-            typeof quantity === "number" &&
-            Number.isFinite(quantity) &&
-            quantity > 0
+            !product ||
+            typeof savedQuantity !== "number" ||
+            !Number.isFinite(savedQuantity) ||
+            savedQuantity <= 0
           ) {
-            valid[id] = Math.min(
-              99,
-              product.stock,
-              Math.floor(quantity)
+            continue;
+          }
+
+          const quantity = Math.min(99, Math.floor(savedQuantity));
+
+          try {
+            const reservationResponse = await fetch(
+              "/api/cart/reservations",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, quantity }),
+              }
             );
+            const reservationResult = await reservationResponse.json();
+
+            if (
+              reservationResponse.ok &&
+              reservationResult.success === true
+            ) {
+              valid[id] = quantity;
+            }
+          } catch {
+            // Keep unavailable reservations out of the cart.
           }
         }
 
@@ -137,20 +157,40 @@ export default function CartPage() {
     }
   }
 
-  function changeQuantity(id: string, amount: number) {
+  async function changeQuantity(id: string, amount: number) {
     const product = products.find((item) => item.id === id);
     if (!product) return;
 
+    const quantity = Math.max(0, Math.min(99, (cart[id] || 0) + amount));
     const next = { ...cart };
-    const quantity = (next[id] || 0) + amount;
 
-    if (quantity <= 0) {
+    if (quantity === 0) {
       delete next[id];
     } else {
-      next[id] = Math.min(99, product.stock, quantity);
+      next[id] = quantity;
     }
 
-    saveCart(next);
+    try {
+      const response = await fetch("/api/cart/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, quantity }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.message || "Reservation failed");
+      }
+
+      saveCart(next);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      window.alert(
+        message || (en
+          ? "Stock reservation failed. Please try again."
+          : "স্টক সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।")
+      );
+    }
   }
 
   const cartItems = products.filter(
@@ -322,13 +362,7 @@ export default function CartPage() {
 
                           <button
                             type="button"
-                            style={{
-                              ...styles.quantityButton,
-                              ...(quantity >= product.stock
-                                ? styles.disabledButton
-                                : {}),
-                            }}
-                            disabled={quantity >= product.stock}
+                            style={styles.quantityButton}
                             onClick={() => changeQuantity(product.id, 1)}
                             aria-label={
                               en ? "Increase quantity" : "পরিমাণ বাড়ান"
@@ -342,7 +376,7 @@ export default function CartPage() {
                           {money(product.price * quantity, language)}
                         </strong>
 
-                        {product.stock - quantity === 0 && (
+                        {product.stock === 0 && (
                           <p style={styles.stockNote}>
                             {en ? "Stock is currently 0" : "স্টক বর্তমানে ০"}
                           </p>

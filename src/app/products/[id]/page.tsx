@@ -18,6 +18,11 @@ type Product = {
   special: boolean;
   description: string;
   englishDescription: string;
+  ratingSummary?: {
+    count: number;
+    total: number;
+    distribution: Record<string, number>;
+  };
 };
 
 type Category = {
@@ -125,23 +130,45 @@ export default function ProductDetailsPage({
         )
       : 0;
 
-  function addToCart() {
+  async function addToCart() {
+    if (!product) return;
+
     try {
       const saved = localStorage.getItem("mukt-bazar-cart");
       const cart: Record<string, number> = saved ? JSON.parse(saved) : {};
-      cart[product!.id] = (cart[product!.id] || 0) + quantity;
+      const nextQuantity = (cart[product.id] || 0) + quantity;
+
+      if (nextQuantity > 99) {
+        setNotice(en ? "Not enough stock available." : "পর্যাপ্ত স্টক নেই।");
+        return;
+      }
+
+      const response = await fetch("/api/cart/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: product.id, quantity: nextQuantity }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.message || "Reservation failed");
+      }
+
+      cart[product.id] = nextQuantity;
       localStorage.setItem("mukt-bazar-cart", JSON.stringify(cart));
 
       setNotice(
         en
-          ? "Quantity saved to this browser's cart."
-          : "এই ব্রাউজারের কার্টে পণ্যের পরিমাণ সংরক্ষিত হয়েছে।"
+          ? "Quantity reserved and saved to your cart."
+          : "পণ্যের স্টক সংরক্ষণ করে কার্টে যোগ হয়েছে।"
       );
-    } catch {
+    } catch (error) {
       setNotice(
-        en
-          ? "Could not save the cart. Please try again."
-          : "কার্টে সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"
+        error instanceof Error
+          ? error.message
+          : (en
+              ? "Could not reserve stock. Please try again."
+              : "স্টক সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।")
       );
     }
   }
@@ -268,6 +295,45 @@ export default function ProductDetailsPage({
         </div>
       </section>
 
+      {product.ratingSummary && product.ratingSummary.count > 0 && (
+        <section style={styles.reviewCard} aria-label={en ? "Customer ratings" : "ক্রেতাদের রিভিউ ও রেটিং"}>
+          <h2 style={styles.reviewTitle}>
+            {en ? "Customer reviews & ratings" : "ক্রেতাদের রিভিউ ও রেটিং"}
+          </h2>
+          <div style={styles.reviewSummary}>
+            <strong style={styles.reviewAverage}>
+              {(product.ratingSummary.total / product.ratingSummary.count).toFixed(1)}
+            </strong>
+            <div>
+              <div style={styles.reviewStars}>★★★★★</div>
+              <p style={styles.reviewCount}>
+                {product.ratingSummary.count.toLocaleString(en ? "en-US" : "bn-BD")} {en ? "reviews" : "টি রিভিউ"}
+              </p>
+            </div>
+          </div>
+          <div style={styles.ratingBars}>
+            {[5, 4, 3, 2, 1].map((star) => {
+              const count = product.ratingSummary!.distribution[String(star)] || 0;
+              const percent = (count / product.ratingSummary!.count) * 100;
+              return (
+                <div key={star} style={styles.ratingBarRow}>
+                  <span>{star}★</span>
+                  <div style={styles.ratingBarTrack}>
+                    <div style={{ ...styles.ratingBarFill, width: `${percent}%` }} />
+                  </div>
+                  <span>{count.toLocaleString(en ? "en-US" : "bn-BD")}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p style={styles.reviewNote}>
+            {en
+              ? "Ratings are based on verified orders."
+              : "এই রেটিংগুলো সম্পন্ন অর্ডারের ক্রেতাদের মতামতের ভিত্তিতে দেখানো হয়েছে।"}
+          </p>
+        </section>
+      )}
+
       <footer style={styles.footer}>
         <Link href="/" style={styles.backLink}>
           ← {en ? "Return to Mukt Bazar" : "মুক্ত বাজারে ফিরে যান"}
@@ -284,7 +350,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f5f8f5",
     color: "#193527",
     padding: "16px",
-    paddingBottom: "40px",
+    paddingBottom: "calc(110px + env(safe-area-inset-bottom))",
     fontFamily: "Arial, sans-serif",
   },
   topBar: {
@@ -518,6 +584,71 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "30px",
     textAlign: "center",
     lineHeight: 1.8,
+  },
+  reviewCard: {
+    maxWidth: "1100px",
+    boxSizing: "border-box",
+    margin: "24px auto 0",
+    padding: "22px",
+    background: "#fff",
+    border: "1px solid #e4ece5",
+    borderRadius: "18px",
+    boxShadow: "0 8px 30px rgba(20, 60, 35, 0.05)",
+  },
+  reviewTitle: {
+    margin: "0 0 18px",
+    fontSize: "20px",
+    color: "#193527",
+  },
+  reviewSummary: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+  },
+  reviewAverage: {
+    fontSize: "42px",
+    color: "#167344",
+  },
+  reviewStars: {
+    color: "#d69a27",
+    fontSize: "22px",
+    letterSpacing: "2px",
+  },
+  reviewCount: {
+    margin: "3px 0 0",
+    color: "#718078",
+    fontSize: "13px",
+  },
+  ratingBars: {
+    display: "grid",
+    gap: "9px",
+    marginTop: "20px",
+    maxWidth: "420px",
+  },
+  ratingBarRow: {
+    display: "grid",
+    gridTemplateColumns: "30px minmax(0, 1fr) 30px",
+    alignItems: "center",
+    gap: "10px",
+    fontSize: "12px",
+    color: "#718078",
+  },
+  ratingBarTrack: {
+    height: "8px",
+    borderRadius: "10px",
+    overflow: "hidden",
+    background: "#edf1ed",
+  },
+  ratingBarFill: {
+    height: "100%",
+    borderRadius: "10px",
+    background: "#d69a27",
+  },
+  reviewNote: {
+    margin: "18px 0 0",
+    color: "#718078",
+    fontSize: "12px",
+    lineHeight: 1.6,
   },
   footer: {
     maxWidth: "1100px",

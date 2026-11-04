@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
         price,
         oldPrice,
         stock,
+        reservedStock: 0,
         unit,
         imageUrl,
         published: body.published === true && stock > 0,
@@ -302,10 +303,40 @@ export async function PATCH(request: NextRequest) {
     }
 
     updates.updatedAt = FieldValue.serverTimestamp();
-    await ref.update(updates);
+
+    await adminDb.runTransaction(async (transaction) => {
+      const freshSnapshot = await transaction.get(ref);
+      if (!freshSnapshot.exists) throw new Error("PRODUCT_NOT_FOUND");
+
+      const freshProduct = freshSnapshot.data()!;
+      const reservedStock = Number(freshProduct.reservedStock ?? 0);
+
+      if (
+        !Number.isSafeInteger(reservedStock) ||
+        reservedStock < 0 ||
+        reservedStock > Number(freshProduct.stock ?? 0)
+      ) {
+        throw new Error("INVALID_RESERVED_STOCK");
+      }
+
+      if (nextStock < reservedStock) {
+        throw new Error("STOCK_BELOW_RESERVED");
+      }
+
+      transaction.update(ref, updates);
+    });
 
     return NextResponse.json({ success: true, message: "পণ্য আপডেট হয়েছে।" });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "STOCK_BELOW_RESERVED") {
+      return errorResponse("সংরক্ষিত স্টকের নিচে স্টক কমানো যাবে না।", 409);
+    }
+    if (error instanceof Error && error.message === "INVALID_RESERVED_STOCK") {
+      return errorResponse("সংরক্ষিত স্টকের তথ্য সঠিক নয়।", 409);
+    }
+    if (error instanceof Error && error.message === "PRODUCT_NOT_FOUND") {
+      return errorResponse("পণ্যটি পাওয়া যায়নি।", 404);
+    }
     return errorResponse("পণ্য আপডেট করা যায়নি।", 500);
   }
 }
@@ -330,6 +361,38 @@ export async function DELETE(request: NextRequest) {
     await adminDb.runTransaction(async (transaction) => {
       const freshProduct = await transaction.get(ref);
       if (!freshProduct.exists) throw new Error("PRODUCT_NOT_FOUND");
+
+      const freshData = freshProduct.data()!;
+      const reservedStock = Number(freshData.reservedStock ?? 0);
+      const reservationQuery = adminDb.collection("cartReservations")
+        .where("productDocumentId", "==", id);
+      const reservationSnapshot = await transaction.get(reservationQuery);
+
+      const openOrdersQuery = adminDb.collection("orders")
+        .where("status", "in", ["pending_confirmation", "confirmed", "packing"]);
+      const openOrdersSnapshot = await transaction.get(openOrdersQuery);
+      const hasOpenOrder = openOrdersSnapshot.docs.some((doc) => {
+        const items = doc.data().items;
+        return Array.isArray(items) && items.some((item) =>
+          item && typeof item === "object" &&
+          (item.productDocumentId === id || item.id === productId ||
+           item.productId === productId)
+        );
+      });
+
+      if (hasOpenOrder) throw new Error("PRODUCT_HAS_OPEN_ORDERS");
+
+      if (!Number.isSafeInteger(reservedStock) || reservedStock < 0) {
+        throw new Error("INVALID_RESERVED_STOCK");
+      }
+
+      const hasOpenReservation = reservationSnapshot.docs.some((doc) =>
+        ["active", "order_linked"].includes(String(doc.data().status)),
+      );
+
+      if (reservedStock > 0 || hasOpenReservation) {
+        throw new Error("PRODUCT_HAS_RESERVATIONS");
+      }
 
       if (productId) {
         const registryRef = registry().doc(productId);
@@ -363,6 +426,15 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === "PRODUCT_NOT_FOUND") {
       return errorResponse("পণ্যটি পাওয়া যায়নি।", 404);
+    }
+    if (error instanceof Error && error.message === "PRODUCT_HAS_OPEN_ORDERS") {
+      return errorResponse("এই পণ্য চলমান অর্ডারে আছে। আগে অর্ডারটি ক্যানসেল করুন।", 409);
+    }
+    if (error instanceof Error && error.message === "PRODUCT_HAS_RESERVATIONS") {
+      return errorResponse("এই পণ্যের সংরক্ষিত স্টক বা চলমান অর্ডার আছে। আগে সেগুলো নিষ্পত্তি করুন।", 409);
+    }
+    if (error instanceof Error && error.message === "INVALID_RESERVED_STOCK") {
+      return errorResponse("সংরক্ষিত স্টকের তথ্য সঠিক নয়।", 409);
     }
     return errorResponse("পণ্য মুছে ফেলা যায়নি।", 500);
   }

@@ -15,6 +15,7 @@ type CheckoutProduct = {
   unit?: string;
   imageUrl: string;
   stock: number;
+  ownReservedQuantity?: number;
 };
 
 type WhatsAppOption = {
@@ -68,7 +69,7 @@ export default function CheckoutPage() {
     setLoadError("");
 
     try {
-      const response = await fetch("/api/store", {
+      const response = await fetch("/api/store?includeCart=1", {
         cache: "no-store",
       });
 
@@ -92,7 +93,7 @@ export default function CheckoutPage() {
           typeof product.imageUrl === "string" &&
           product.imageUrl.startsWith("https://") &&
           Number.isInteger(product.stock) &&
-          product.stock > 0
+          (product.stock > 0 || (product.ownReservedQuantity ?? 0) > 0)
       );
 
       setProducts(validProducts);
@@ -121,7 +122,7 @@ export default function CheckoutPage() {
           ) {
             validCart[product.id] = Math.min(
               99,
-              product.stock,
+              product.stock + (product.ownReservedQuantity ?? 0),
               Math.floor(requested)
             );
           }

@@ -1,18 +1,68 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase-admin";
+import {
+  CART_SESSION_COOKIE,
+  hashCartSessionToken,
+  isValidCartSessionToken,
+} from "@/lib/cart-reservations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const [categorySnapshot, productSnapshot, bannerSnapshot] =
+    const [categorySnapshot, productSnapshot, bannerSnapshot, reservationSnapshot] =
       await Promise.all([
         adminDb.collection("categories").get(),
         adminDb.collection("products").get(),
         adminDb.collection("specialBanners")
           .where("active", "==", true).get(),
+        adminDb.collection("cartReservations").get(),
       ]);
+
+    const now = Date.now();
+    const includeCart = request.nextUrl.searchParams.get("includeCart") === "1";
+    const sessionToken = request.cookies.get(CART_SESSION_COOKIE)?.value;
+    const ownerHash = includeCart && isValidCartSessionToken(sessionToken)
+      ? hashCartSessionToken(sessionToken)
+      : null;
+    const reservedByProduct = new Map<string, number>();
+    const ownReservedByProduct = new Map<string, number>();
+
+    for (const doc of reservationSnapshot.docs) {
+      const reservation = doc.data();
+      const status = reservation.status;
+      const isActive = status === "active" &&
+        reservation.expiresAt instanceof Timestamp &&
+        reservation.expiresAt.toMillis() > now;
+      const isOrderLinked = status === "order_linked";
+      const quantity = Number(reservation.quantity ?? 0);
+      const productDocumentId = reservation.productDocumentId;
+
+      if (
+        (isActive || isOrderLinked) &&
+        typeof productDocumentId === "string" &&
+        Number.isSafeInteger(quantity) &&
+        quantity > 0
+      ) {
+        reservedByProduct.set(
+          productDocumentId,
+          (reservedByProduct.get(productDocumentId) ?? 0) + quantity,
+        );
+
+        if (
+          isActive &&
+          ownerHash &&
+          reservation.ownerHash === ownerHash
+        ) {
+          ownReservedByProduct.set(
+            productDocumentId,
+            (ownReservedByProduct.get(productDocumentId) ?? 0) + quantity,
+          );
+        }
+      }
+    }
 
     const categories = categorySnapshot.docs
       .map((doc) => {
@@ -57,16 +107,32 @@ export async function GET() {
           price: Number(data.price),
           oldPrice: Number(data.oldPrice ?? data.price),
           imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
-          stock: Number(data.stock ?? 0),
+          stock: Math.max(
+            0,
+            Number(data.stock ?? 0) - (reservedByProduct.get(doc.id) ?? 0),
+          ),
+          ownReservedQuantity: ownReservedByProduct.get(doc.id) ?? 0,
           unit: typeof data.unit === "string" && data.unit ? data.unit : "পিস",
           special: data.special === true,
           published: data.published === true,
+          ratingSummary: {
+            count: Math.max(0, Number(data.ratingSummary?.count ?? 0)),
+            total: Math.max(0, Number(data.ratingSummary?.total ?? 0)),
+            distribution: {
+              1: Math.max(0, Number(data.ratingSummary?.distribution?.[1] ?? 0)),
+              2: Math.max(0, Number(data.ratingSummary?.distribution?.[2] ?? 0)),
+              3: Math.max(0, Number(data.ratingSummary?.distribution?.[3] ?? 0)),
+              4: Math.max(0, Number(data.ratingSummary?.distribution?.[4] ?? 0)),
+              5: Math.max(0, Number(data.ratingSummary?.distribution?.[5] ?? 0)),
+            },
+          },
         };
       })
       .filter(
         (product) =>
           product.published &&
-          product.stock > 0 &&
+          (product.stock > 0 ||
+            (includeCart && product.ownReservedQuantity > 0)) &&
           product.name &&
           product.english &&
           Number.isFinite(product.price) &&

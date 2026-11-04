@@ -237,7 +237,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!pendingReview) return;
-    const timer = window.setTimeout(() => setPendingReview(null), 5000);
+    const timer = window.setTimeout(() => setPendingReview(null), 30000);
     return () => window.clearTimeout(timer);
   }, [pendingReview]);
 
@@ -354,28 +354,53 @@ const filteredProducts = useMemo(() => {
     0
   );
 
-  function addToCart(product: Product) {
-    const next = {
-      ...cart,
-      [product.id]: (cart[product.id] || 0) + 1,
-    };
+  async function addToCart(product: Product) {
+    const quantity = (cart[product.id] || 0) + 1;
 
-    setCart(next);
-
-    try {
-      localStorage.setItem("mukt-bazar-cart", JSON.stringify(next));
-    } catch {
-      setNotice(
-        en ? "Could not save cart." : "কার্ট সংরক্ষণ করা যায়নি।"
-      );
+    if (quantity > 99 || quantity > product.stock) {
+      setNotice(en ? "No more stock available." : "আর স্টক নেই।");
       return;
     }
 
-    setNotice(
-      en
-        ? `${product.english} added to cart`
-        : `${product.name} কার্টে যোগ হয়েছে`
-    );
+    try {
+      const response = await fetch("/api/cart/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: product.id, quantity }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.message || "Reservation failed");
+      }
+
+      const next = { ...cart, [product.id]: quantity };
+
+      try {
+        localStorage.setItem("mukt-bazar-cart", JSON.stringify(next));
+      } catch {
+        await fetch(
+          `/api/cart/reservations?id=${encodeURIComponent(product.id)}`,
+          { method: "DELETE" }
+        );
+        throw new Error(
+          en ? "Could not save cart." : "কার্ট সংরক্ষণ করা যায়নি।"
+        );
+      }
+
+      setCart(next);
+      setNotice(
+        en
+          ? `${product.english} added to cart`
+          : `${product.name} কার্টে যোগ হয়েছে`
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : (en ? "Stock reservation failed." : "স্টক সংরক্ষণ করা যায়নি।")
+      );
+    }
   }
 
   function showCategory(categoryId: string) {
@@ -1034,7 +1059,7 @@ const filteredProducts = useMemo(() => {
             zIndex: 9999,
             background: "rgba(0,0,0,0.42)",
             display: "flex",
-            alignItems: "flex-end",
+            alignItems: "center",
             justifyContent: "center",
             padding: "18px",
           }}
