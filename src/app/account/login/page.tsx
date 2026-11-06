@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { customerAuth } from "@/lib/customer-auth";
 import { useLanguage } from "@/components/language-provider";
 
 export default function CustomerLoginPage() {
@@ -82,7 +82,7 @@ export default function CustomerLoginPage() {
 
     try {
       const credential = await signInWithEmailAndPassword(
-        auth,
+        customerAuth,
         email.trim(),
         password
       );
@@ -98,7 +98,7 @@ export default function CustomerLoginPage() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        await signOut(auth);
+        await signOut(customerAuth);
         throw new Error(
           result.error ||
           (en ? "Customer login was not successful." : "কাস্টমার লগইন সফল হয়নি।")
@@ -139,7 +139,7 @@ export default function CustomerLoginPage() {
     setResetLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      await sendPasswordResetEmail(customerAuth, email.trim());
 
       setSuccess(
         en

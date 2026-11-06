@@ -9,7 +9,7 @@ import {
   updateProfile,
   signOut,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { customerAuth } from "@/lib/customer-auth";
 import { useLanguage } from "@/components/language-provider";
 
 export default function CustomerRegisterPage() {
@@ -73,10 +73,10 @@ export default function CustomerRegisterPage() {
     setLoading(true);
 
     try {
-      await signOut(auth).catch(() => {});
+      await signOut(customerAuth).catch(() => {});
 
       const credential = await createUserWithEmailAndPassword(
-        auth,
+        customerAuth,
         cleanEmail,
         password,
       );

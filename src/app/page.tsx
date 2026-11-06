@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/language-provider";
 import SiteNavigation from "@/components/site-navigation";
 import SiteFooter from "@/components/site-footer";
+import { signOut } from "firebase/auth";
+import { customerAuth } from "@/lib/customer-auth";
 
 type Product = {
   id: string;
@@ -141,6 +143,7 @@ export default function HomePage() {
     photoURL: string;
   } | null>(null);
   const [customerChecked, setCustomerChecked] = useState(false);
+  const [customerLogoutLoading, setCustomerLogoutLoading] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -214,6 +217,44 @@ export default function HomePage() {
     token: string;
     items: { name: string }[];
   } | null>(null);
+
+
+  async function handleCustomerLogout() {
+    if (customerLogoutLoading) return;
+    setCustomerLogoutLoading(true);
+
+    try {
+      const [sessionResult, authResult] = await Promise.allSettled([
+        fetch("/api/customer/session", {
+          method: "DELETE",
+          cache: "no-store",
+        }),
+        signOut(customerAuth),
+      ]);
+
+      const sessionCleared =
+        sessionResult.status === "fulfilled" && sessionResult.value.ok;
+      const authCleared = authResult.status === "fulfilled";
+
+      if (sessionCleared) {
+        setCustomer(null);
+        setMenuOpen(false);
+        router.refresh();
+      }
+
+      if (sessionCleared && authCleared) {
+        setNotice(en ? "You have been logged out." : "আপনি লগআউট করেছেন।");
+      } else {
+        setNotice(
+          en
+            ? "Logout was incomplete. Please try again."
+            : "লগআউট সম্পূর্ণ হয়নি। আবার চেষ্টা করুন।"
+        );
+      }
+    } finally {
+      setCustomerLogoutLoading(false);
+    }
+  }
 
   const offerTrack = useRef<HTMLDivElement | null>(null);
   const categoryTrack = useRef<HTMLDivElement | null>(null);
@@ -1008,7 +1049,7 @@ const filteredProducts = useMemo(() => {
               >×</button>
             </div>
 
-            <section style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 12px", marginTop: 14, borderRadius: 13, background: "#edf6ef" }}>
+            <section style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 12px", marginTop: 14, borderRadius: 13, background: theme === "dark" ? "#203c2d" : "#edf6ef" }}>
               {customer?.photoURL ? (
                 <Image
                   src={customer.photoURL}
@@ -1024,7 +1065,7 @@ const filteredProducts = useMemo(() => {
                 </div>
               )}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <strong style={{ display: "block", fontSize: 15 }}>
+                <strong style={{ display: "block", fontSize: 15, color: theme === "dark" ? "#ffffff" : "#173b29" }}>
                   {!customerChecked
                     ? (en ? "Checking account..." : "অ্যাকাউন্ট যাচাই হচ্ছে...")
                     : customer
@@ -1042,13 +1083,25 @@ const filteredProducts = useMemo(() => {
             </section>
 
             {customer ? (
-              <button
-                type="button"
-                disabled
-                style={{ width: "100%", marginTop: 8, padding: 12, border: "1px solid #dce6dc", borderRadius: 9, background: "#fff", color: "#788178", textAlign: "left", fontWeight: 700 }}
-              >
-                {en ? "Edit Profile — Coming soon" : "প্রোফাইল সম্পাদনা — শীঘ্রই"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                <Link
+                  href="/account/profile"
+                  onClick={() => setMenuOpen(false)}
+                  style={{ width: "100%", boxSizing: "border-box", padding: 12, border: "1px solid #dce6dc", borderRadius: 9, background: "#fff", color: "#176b43", textAlign: "left", fontWeight: 700, textDecoration: "none" }}
+                >
+                  {en ? "Edit Profile" : "প্রোফাইল সম্পাদনা"}
+                </Link>
+                <button
+                  type="button"
+                  disabled={customerLogoutLoading}
+                  onClick={() => void handleCustomerLogout()}
+                  style={{ width: "100%", padding: 12, border: "1px solid #d8ded8", borderRadius: 9, background: "#f1f3f1", color: "#475569", textAlign: "left", fontWeight: 700, cursor: customerLogoutLoading ? "wait" : "pointer", opacity: customerLogoutLoading ? 0.65 : 1 }}
+                >
+                  {customerLogoutLoading
+                    ? (en ? "Logging out..." : "লগআউট হচ্ছে...")
+                    : (en ? "Logout" : "লগআউট")}
+                </button>
+              </div>
             ) : (
               <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
                 <Link
