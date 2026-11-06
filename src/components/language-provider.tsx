@@ -12,6 +12,7 @@ import {
 } from "react";
 
 export type Language = "bn" | "en";
+export type Theme = "light" | "dark";
 
 const translations = {
   bn: {
@@ -107,6 +108,8 @@ export type TranslationKey = keyof typeof translations.bn;
 type LanguageContextValue = {
   language: Language;
   setLanguage: (language: Language) => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   t: (key: TranslationKey) => string;
 };
 
@@ -119,6 +122,7 @@ export function LanguageProvider({
   children: ReactNode;
 }) {
   const [language, setLanguageState] = useState<Language>("bn");
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +150,32 @@ export function LanguageProvider({
     document.documentElement.lang = language;
   }, [language]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+
+      try {
+        const saved = window.localStorage.getItem("mukt-bazar-theme");
+        if (saved === "light" || saved === "dark") {
+          setThemeState(saved);
+        }
+      } catch {
+        // Continue with light theme if storage is unavailable.
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme === "dark" ? "dark" : "light";
+  }, [theme]);
+
   const setLanguage = useCallback((nextLanguage: Language) => {
     setLanguageState(nextLanguage);
 
@@ -159,14 +189,24 @@ export function LanguageProvider({
     }
   }, []);
 
+  const setTheme = useCallback((nextTheme: Theme) => {
+    setThemeState(nextTheme);
+
+    try {
+      window.localStorage.setItem("mukt-bazar-theme", nextTheme);
+    } catch {
+      // Theme still changes for the current session.
+    }
+  }, []);
+
   const t = useCallback(
     (key: TranslationKey) => translations[language][key],
     [language],
   );
 
   const value = useMemo(
-    () => ({ language, setLanguage, t }),
-    [language, setLanguage, t],
+    () => ({ language, setLanguage, theme, setTheme, t }),
+    [language, setLanguage, theme, setTheme, t],
   );
 
   return (

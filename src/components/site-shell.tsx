@@ -16,11 +16,15 @@ export default function SiteShell({
 
   return (
     <>
-      {!isAdmin && <IntroScreen />}
+      {!isAdmin && (
+        <div className="mb-public-theme">
+          <IntroScreen />
+          {children}
+          <SiteNavigation />
+        </div>
+      )}
 
-      {children}
-
-      {!isAdmin && <SiteNavigation />}
+      {isAdmin && children}
 
       {isAdmin && !isLogin && (
         <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-green-100 bg-white px-2 py-3 shadow-lg md:hidden">

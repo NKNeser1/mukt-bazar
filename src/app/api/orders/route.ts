@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash, createHmac } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import {
   CART_SESSION_COOKIE,
   createCartReservationId,
@@ -38,6 +38,43 @@ export async function POST(request: NextRequest) {
     }
 
     const data = body as Record<string, unknown>;
+
+    let customerUid: string | null = null;
+    const sessionCookie = request.cookies.get(
+      "mukt_bazar_customer_session",
+    )?.value;
+
+    if (sessionCookie) {
+      try {
+        const decoded = await adminAuth.verifySessionCookie(
+          sessionCookie,
+          true,
+        );
+
+        if (decoded.role) {
+          return fail("Customer সেশন অনুমোদিত নয়।", 403);
+        }
+
+        const [user, adminDoc, profileSnap] = await Promise.all([
+          adminAuth.getUser(decoded.uid),
+          adminDb.collection("admins").doc(decoded.uid).get(),
+          adminDb.collection("customers").doc(decoded.uid).get(),
+        ]);
+
+        if (
+          user.disabled ||
+          !user.email ||
+          adminDoc.exists ||
+          !profileSnap.exists
+        ) {
+          return fail("Customer সেশন যাচাই করা যায়নি।", 403);
+        }
+
+        customerUid = decoded.uid;
+      } catch {
+        return fail("Customer লগইন সেশনের মেয়াদ শেষ। আবার লগইন করুন।", 401);
+      }
+    }
     const name = typeof data.name === "string" ? data.name.trim() : "";
     const phone = typeof data.phone === "string" ? data.phone.trim() : "";
     const address = typeof data.address === "string" ? data.address.trim() : "";
@@ -273,6 +310,7 @@ export async function POST(request: NextRequest) {
       );
 
       transaction.create(orderRef, {
+        ...(customerUid ? { customerUid } : {}),
         customer: { name, phone, address, note },
         whatsapp: {
           numberId: whatsappNumberId,

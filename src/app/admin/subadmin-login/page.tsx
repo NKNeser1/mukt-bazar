@@ -1,7 +1,8 @@
 
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
@@ -24,6 +25,16 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [siteLogo, setSiteLogo] = useState("/logo.png");
+
+  useEffect(() => {
+    fetch("/api/site-settings")
+      .then((response) => response.json())
+      .then((data) => {
+        setSiteLogo(data.branding?.logo?.imageUrl || "/logo.png");
+      })
+      .catch(() => setSiteLogo("/logo.png"));
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -162,8 +173,8 @@ export default function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-[#f5f8f5] px-4 py-10">
       <section className="w-full max-w-md overflow-hidden rounded-3xl border border-green-100 bg-white shadow-xl shadow-green-950/5">
         <div className="bg-gradient-to-br from-green-800 to-green-600 px-7 py-9 text-center text-white">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-3xl">
-            🛍️
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/15 p-2">
+            <Image src={siteLogo} alt="মুক্ত বাজার" width={56} height={56} className="h-full w-full object-contain" unoptimized />
           </div>
           <h1 className="text-3xl font-extrabold">মুক্ত বাজার</h1>
           <p className="mt-2 text-sm text-green-50">

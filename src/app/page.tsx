@@ -131,14 +131,81 @@ function getDiscount(product: Product) {
 
 export default function HomePage() {
   const router = useRouter();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, theme, setTheme } = useLanguage();
   const en = language === "en";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [customer, setCustomer] = useState<{
+    name: string;
+    mobile: string;
+    email: string;
+    photoURL: string;
+  } | null>(null);
+  const [customerChecked, setCustomerChecked] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCustomerSession() {
+      try {
+        const response = await fetch("/api/customer/session", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success && data.customer) {
+          setCustomer({
+            name: typeof data.customer.name === "string" ? data.customer.name : "",
+            mobile: typeof data.customer.mobile === "string" ? data.customer.mobile : "",
+            email: typeof data.customer.email === "string" ? data.customer.email : "",
+            photoURL: typeof data.customer.photoURL === "string" ? data.customer.photoURL : "",
+          });
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("[Customer Session]", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) setCustomerChecked(true);
+      }
+    }
+
+    void loadCustomerSession();
+    return () => controller.abort();
+  }, []);
 
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [banners, setBanners] = useState<Record<string, SpecialBanner>>({});
+  const [siteLogo, setSiteLogo] = useState("/logo.png");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadSiteLogo() {
+      try {
+        const response = await fetch("/api/site-settings", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setSiteLogo(data.branding?.logo?.imageUrl || "/logo.png");
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("[Homepage Logo]", error);
+        }
+      }
+    }
+
+    void loadSiteLogo();
+    return () => controller.abort();
+  }, []);
+
   const [storeLoading, setStoreLoading] = useState(true);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [notice, setNotice] = useState("");
@@ -760,8 +827,8 @@ const filteredProducts = useMemo(() => {
         </div>
 
         {categoryProducts.length > 0 ? (
-          <div className="mb-product-grid">
-            {categoryProducts.slice(0, 6).map(productCard)}
+          <div className="mb-product-slider">
+            {categoryProducts.map(productCard)}
           </div>
         ) : (
           <div
@@ -845,13 +912,18 @@ const filteredProducts = useMemo(() => {
       </div>
 
       <header className="mb-header">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <button type="button" onClick={() => setMenuOpen(true)}
+            aria-label={en ? "Open menu" : "মেনু খুলুন"}
+            aria-expanded={menuOpen}
+            style={{ width: 40, height: 40, flexShrink: 0, border: "1px solid var(--border)", borderRadius: 10, background: "white", color: "var(--green-dark)", fontSize: 25, lineHeight: 1, cursor: "pointer" }}>☰</button>
         <Link
           className="mb-brand"
           href="/"
           aria-label="Mukt Bazar home"
         >
           <Image
-            src="/logo.png"
+            src={siteLogo}
             alt="মুক্ত বাজার"
             width={58}
             height={58}
@@ -862,6 +934,7 @@ const filteredProducts = useMemo(() => {
             <small>MUKT BAZAR</small>
           </span>
         </Link>
+        </div>
 
         <div className="mb-search">
           <span aria-hidden="true">⌕</span>
@@ -912,6 +985,151 @@ const filteredProducts = useMemo(() => {
           </button>
         </div>
       </header>
+
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.45)", display: "flex" }}
+        >
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={en ? "Main menu" : "প্রধান মেনু"}
+            onClick={(event) => event.stopPropagation()}
+            style={{ width: "min(340px, 88vw)", height: "100%", padding: 18, boxSizing: "border-box", background: "white", color: "#183b29", boxShadow: "4px 0 24px rgba(0,0,0,.15)", overflowY: "auto" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14, borderBottom: "1px solid #e5e7eb" }}>
+              <strong style={{ fontSize: 19 }}>{en ? "Menu" : "মেনু"}</strong>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label={en ? "Close menu" : "মেনু বন্ধ করুন"}
+                style={{ border: 0, background: "transparent", fontSize: 27, cursor: "pointer" }}
+              >×</button>
+            </div>
+
+            <section style={{ display: "flex", alignItems: "center", gap: 12, padding: "18px 12px", marginTop: 14, borderRadius: 13, background: "#edf6ef" }}>
+              {customer?.photoURL ? (
+                <Image
+                  src={customer.photoURL}
+                  alt={en ? "Profile photo" : "প্রোফাইল ছবি"}
+                  width={54}
+                  height={54}
+                  unoptimized
+                  style={{ width: 54, height: 54, borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : (
+                <div style={{ width: 54, height: 54, flexShrink: 0, borderRadius: "50%", display: "grid", placeItems: "center", background: "#d5e9d9", color: "#176b43", fontSize: 25, fontWeight: 800 }}>
+                  {customer?.name?.trim()?.charAt(0)?.toUpperCase() || "👤"}
+                </div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <strong style={{ display: "block", fontSize: 15 }}>
+                  {!customerChecked
+                    ? (en ? "Checking account..." : "অ্যাকাউন্ট যাচাই হচ্ছে...")
+                    : customer
+                      ? customer.name
+                      : (en ? "Guest User" : "অতিথি ব্যবহারকারী")}
+                </strong>
+                <span style={{ display: "block", marginTop: 4, color: "#647067", fontSize: 12, overflowWrap: "anywhere" }}>
+                  {customer
+                    ? customer.mobile
+                    : customerChecked
+                      ? (en ? "Login or register to access your account" : "অ্যাকাউন্ট খুলতে লগইন বা রেজিস্ট্রেশন করুন")
+                      : ""}
+                </span>
+              </div>
+            </section>
+
+            {customer ? (
+              <button
+                type="button"
+                disabled
+                style={{ width: "100%", marginTop: 8, padding: 12, border: "1px solid #dce6dc", borderRadius: 9, background: "#fff", color: "#788178", textAlign: "left", fontWeight: 700 }}
+              >
+                {en ? "Edit Profile — Coming soon" : "প্রোফাইল সম্পাদনা — শীঘ্রই"}
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
+                <Link
+                  href="/account/register"
+                  onClick={() => setMenuOpen(false)}
+                  style={{ flex: 1, padding: 12, borderRadius: 9, background: "#176b43", color: "white", textAlign: "center", fontWeight: 700, textDecoration: "none", fontSize: 13 }}
+                >
+                  {en ? "Register" : "রেজিস্ট্রেশন"}
+                </Link>
+                <Link
+                  href="/account/login"
+                  onClick={() => setMenuOpen(false)}
+                  style={{ flex: 1, padding: 12, border: "1px solid #176b43", borderRadius: 9, background: "white", color: "#176b43", textAlign: "center", fontWeight: 700, textDecoration: "none", fontSize: 13 }}
+                >
+                  {en ? "Login" : "লগইন"}
+                </Link>
+              </div>
+            )}
+
+            <div style={{ height: 1, background: "#e5e7eb", margin: "17px 0 10px" }} />
+
+            <nav style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Link href="/" onClick={() => setMenuOpen(false)} style={{ padding: 12, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                🏠　{en ? "Home" : "হোম"}
+              </Link>
+
+              <Link href="/account/orders" onClick={() => setMenuOpen(false)} style={{ padding: 12, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                📋　{en ? "Orders" : "অর্ডার"}
+              </Link>
+
+              <Link href="/track-order" onClick={() => setMenuOpen(false)} style={{ padding: 12, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                📦　{en ? "Track Order" : "অর্ডার ট্র্যাক করুন"}
+              </Link>
+
+              <Link href="/delivery-reviews" onClick={() => setMenuOpen(false)} style={{ padding: 12, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                ⭐　{en ? "Delivery Reviews" : "ডেলিভারি রিভিউ"}
+              </Link>
+
+              <div style={{ marginTop: 5, padding: 12, border: "1px solid var(--border)", borderRadius: 9, color: "var(--text)", fontWeight: 700 }}>
+                🎨　{en ? "Choose Theme" : "থিম নির্বাচন করুন"}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setTheme("light")}
+                    aria-pressed={theme === "light"}
+                    style={{ flex: 1, padding: 10, border: theme === "light" ? "2px solid var(--green)" : "1px solid var(--border)", borderRadius: 8, background: theme === "light" ? "var(--green-light)" : "var(--white)", color: "var(--text)", fontWeight: 700 }}
+                  >
+                    ☀️ {en ? "White" : "সাদা"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme("dark")}
+                    aria-pressed={theme === "dark"}
+                    style={{ flex: 1, padding: 10, border: theme === "dark" ? "2px solid var(--green)" : "1px solid var(--border)", borderRadius: 8, background: theme === "dark" ? "var(--green-light)" : "var(--white)", color: "var(--text)", fontWeight: 700 }}
+                  >
+                    🌙 {en ? "Dark" : "ডার্ক"}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLanguage(en ? "bn" : "en")}
+                style={{ padding: 12, border: "1px solid #dce6dc", borderRadius: 9, background: "white", color: "#176b43", textAlign: "left", fontWeight: 700 }}
+              >
+                文　{en ? "বাংলা ভাষা" : "English"}
+              </button>
+
+              <div style={{ marginTop: 5, padding: "10px 12px 5px", color: "#647067", fontSize: 12, fontWeight: 800 }}>
+                {en ? "WEBSITE INFO" : "ওয়েবসাইট তথ্য"}
+              </div>
+              <Link href="/info/about" onClick={() => setMenuOpen(false)} style={{ padding: 11, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                {en ? "About Us" : "আমাদের সম্পর্কে"}
+              </Link>
+              <Link href="/info/contact" onClick={() => setMenuOpen(false)} style={{ padding: 11, borderRadius: 9, background: "#f5f8f5", color: "#176b43", fontWeight: 700, textDecoration: "none" }}>
+                {en ? "Contact Us" : "যোগাযোগ করুন"}
+              </Link>
+            </nav>
+          </aside>
+        </div>
+      )}
 
       {storeLoading ? (
         <section className="mb-section">

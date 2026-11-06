@@ -2378,3 +2378,118 @@ a {
   height: 100% !important;
   object-fit: cover !important;
 }
+
+/* Mukt Bazar public dark theme */
+html[data-theme="dark"] .mb-public-theme {
+  --green: #43a875;
+  --green-dark: #24583d;
+  --green-light: #203c2d;
+  --page: #101a15;
+  --text: #e5eee7;
+  --muted: #a5b2a8;
+  --border: #304238;
+  --white: #1b2a21;
+  --orange: #f08a68;
+  --shadow: 0 12px 35px rgba(0, 0, 0, 0.24);
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .mb-public-theme .mb-header {
+  background: rgba(20, 34, 26, 0.97);
+}
+
+html[data-theme="dark"] .mb-public-theme .mb-search,
+html[data-theme="dark"] .mb-public-theme .mb-search:focus-within {
+  background: #17251c;
+}
+
+html[data-theme="dark"] .mb-public-theme .mb-brand,
+html[data-theme="dark"] .mb-public-theme .mb-cart-button,
+html[data-theme="dark"] .mb-public-theme .mb-language {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .mb-public-theme .mb-product-card,
+html[data-theme="dark"] .mb-public-theme .mb-category-tile,
+html[data-theme="dark"] .mb-public-theme .mb-offer-card,
+html[data-theme="dark"] .mb-public-theme .mb-footer,
+html[data-theme="dark"] .mb-public-theme .mb-site-nav {
+  background: var(--white);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .mb-public-theme .mb-home-section,
+html[data-theme="dark"] .mb-public-theme .mb-home-section:nth-of-type(2n),
+html[data-theme="dark"] .mb-public-theme .mb-home-section:nth-of-type(3n),
+html[data-theme="dark"] .mb-public-theme .mb-home-section:nth-of-type(4n) {
+  background: #17251c;
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .mb-public-theme [role="dialog"] {
+  background: var(--white) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .mb-public-theme [class~="bg-white"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-white/95"] {
+  background-color: var(--white) !important;
+}
+
+html[data-theme="dark"] .mb-public-theme [class~="bg-gray-50"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-gray-100"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-green-50"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-green-100"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-amber-50"],
+html[data-theme="dark"] .mb-public-theme [class~="bg-red-50"] {
+  background-color: #203229 !important;
+}
+
+html[data-theme="dark"] .mb-public-theme [class~="text-gray-900"],
+html[data-theme="dark"] .mb-public-theme [class~="text-gray-800"],
+html[data-theme="dark"] .mb-public-theme [class~="text-gray-700"],
+html[data-theme="dark"] .mb-public-theme [class~="text-gray-600"],
+html[data-theme="dark"] .mb-public-theme [class~="text-gray-500"],
+html[data-theme="dark"] .mb-public-theme [class~="text-green-950"],
+html[data-theme="dark"] .mb-public-theme [class~="text-green-900"],
+html[data-theme="dark"] .mb-public-theme [class~="text-green-800"],
+html[data-theme="dark"] .mb-public-theme [class~="text-green-700"] {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .mb-public-theme [class~="border-gray-100"],
+html[data-theme="dark"] .mb-public-theme [class~="border-green-100"],
+html[data-theme="dark"] .mb-public-theme [class~="border-green-200"] {
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .mb-public-theme input,
+html[data-theme="dark"] .mb-public-theme textarea,
+html[data-theme="dark"] .mb-public-theme select {
+  background-color: #17251c;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .mb-public-theme input::placeholder,
+html[data-theme="dark"] .mb-public-theme textarea::placeholder {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .mb-public-theme [style*="background: white"],
+html[data-theme="dark"] .mb-public-theme [style*="background:white"],
+html[data-theme="dark"] .mb-public-theme [style*="background: #fff"],
+html[data-theme="dark"] .mb-public-theme [style*="background:#fff"] {
+  background: var(--white) !important;
+}
+
+html[data-theme="dark"] .mb-public-theme [style*="color: #183b29"],
+html[data-theme="dark"] .mb-public-theme [style*="color:#183b29"],
+html[data-theme="dark"] .mb-public-theme [style*="color: #176b43"],
+html[data-theme="dark"] .mb-public-theme [style*="color:#176b43"] {
+  color: var(--text) !important;
+}

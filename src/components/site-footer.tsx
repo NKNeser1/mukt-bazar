@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -27,16 +30,28 @@ const groups = [
 ];
 
 export default function SiteFooter() {
+  const [siteLogo, setSiteLogo] = useState("/logo.png");
+
+  useEffect(() => {
+    fetch("/api/site-settings")
+      .then((response) => response.json())
+      .then((data) => {
+        setSiteLogo(data.branding?.logo?.imageUrl || "/logo.png");
+      })
+      .catch(() => setSiteLogo("/logo.png"));
+  }, []);
+
   return (
     <footer className="mb-footer">
       <div className="mb-footer-top">
         <Link className="mb-brand" href="/">
           <Image
-            src="/logo.png"
+            src={siteLogo}
             alt="মুক্ত বাজার"
             width={120}
             height={120}
             className="mb-brand-logo"
+            unoptimized
           />
           <span>
             <strong>মুক্ত বাজার</strong>

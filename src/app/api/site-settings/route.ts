@@ -46,10 +46,10 @@ export async function GET() {
           primary: item.primary === true,
         })),
       branding: {
-        logo: branding.logo || null,
-        socialBanner: branding.socialBanner || null,
+        logo: branding.logo || { imageUrl: "/logo.png", publicId: "default-logo" },
+        socialBanner: branding.socialBanner || { imageUrl: "/social-banner.png", publicId: "default-social-banner" },
         intro: {
-          image: branding.intro?.image || null,
+          image: branding.intro?.image || { imageUrl: "/logo.png", publicId: "default-intro-image" },
           title: branding.intro?.title || "মুক্ত বাজার",
           tagline:
             branding.intro?.tagline ||

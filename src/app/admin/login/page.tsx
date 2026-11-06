@@ -1,10 +1,12 @@
 
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -16,6 +18,51 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [siteLogo, setSiteLogo] = useState("/logo.png");
+
+  useEffect(() => {
+    fetch("/api/site-settings")
+      .then((response) => response.json())
+      .then((data) => {
+        setSiteLogo(data.branding?.logo?.imageUrl || "/logo.png");
+      })
+      .catch(() => setSiteLogo("/logo.png"));
+  }, []);
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      setError("পাসওয়ার্ড রিসেট করতে আগে অ্যাডমিন ইমেইল লিখুন।");
+      setResetMessage("");
+      return;
+    }
+
+    setError("");
+    setResetMessage("");
+    setResetLoading(true);
+
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetMessage("পাসওয়ার্ড পরিবর্তনের লিংক আপনার ইমেইলে পাঠানো হয়েছে। ইমেইল ইনবক্স ও Spam ফোল্ডার দেখুন।");
+    } catch (err: unknown) {
+      const code =
+        typeof err === "object" && err !== null && "code" in err
+          ? String(err.code)
+          : "";
+
+      const messages: Record<string, string> = {
+        "auth/invalid-email": "ইমেইল ঠিকানাটি সঠিক নয়।",
+        "auth/user-not-found": "এই ইমেইলে Firebase অ্যাকাউন্ট পাওয়া যায়নি।",
+        "auth/too-many-requests": "অনেকবার চেষ্টা হয়েছে। পরে আবার চেষ্টা করুন।",
+        "auth/network-request-failed": "ইন্টারনেট সংযোগ পরীক্ষা করুন।",
+      };
+
+      setError(messages[code] || "পাসওয়ার্ড রিসেট ইমেইল পাঠানো যায়নি।");
+    } finally {
+      setResetLoading(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,8 +131,8 @@ export default function AdminLoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-[#f5f8f5] px-4 py-10">
       <section className="w-full max-w-md overflow-hidden rounded-3xl border border-green-100 bg-white shadow-xl shadow-green-950/5">
         <div className="bg-gradient-to-br from-green-800 to-green-600 px-7 py-9 text-center text-white">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/15 text-3xl">
-            🛍️
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/15 p-2">
+            <Image src={siteLogo} alt="মুক্ত বাজার" width={56} height={56} className="h-full w-full object-contain" unoptimized />
           </div>
           <h1 className="text-3xl font-extrabold">মুক্ত বাজার</h1>
           <p className="mt-2 text-sm text-green-50">
@@ -144,6 +191,23 @@ export default function AdminLoginPage() {
                 </button>
               </div>
             </div>
+
+            <div className="-mt-2 text-right">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-sm font-semibold text-green-700 hover:text-green-800 disabled:opacity-60"
+              >
+                {resetLoading ? "লিংক পাঠানো হচ্ছে..." : "পাসওয়ার্ড ভুলে গেছেন?"}
+              </button>
+            </div>
+
+            {resetMessage && (
+              <p role="status" className="break-words rounded-xl bg-green-50 px-4 py-3 text-sm leading-6 text-green-800">
+                {resetMessage}
+              </p>
+            )}
 
             {error && (
               <p role="alert" className="break-words rounded-xl bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
